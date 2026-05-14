@@ -120,18 +120,21 @@ def extract_event_definitions(root, namespaces):
     return pd.DataFrame(event_definitions)
 
 def clean_instrument_name(name):
-    """Remove version suffixes from instrument names."""
+    """Remove version suffixes from instrument names like 'Name - Version 1'."""
     if not name:
         return name
+    # Patterns to remove version info (with optional dash/space prefix)
     patterns = [
-        r'\s*[\(\[]?[Vv]\d+[\)\]]?\s*$',
-        r'\s*[\(\[]\d+[\)\]]\s*$',
-        r'\s*[-_]\s*[Vv]?\d+\s*$',
-        r'\s*\b[Vv]ersion\s*\d+\s*$',
-        r'\s*\b[Vv]\s*\d+\s*$',
+        r'\s*[-_]?\\s*[\\(\\[]?[Vv]\\d+[\\)\\]]?\\s*$',           # (V1), [V2], V3, - V1
+        r'\s*[-_]?\\s*[\\(\\[]\\d+[\\)\\]]\\s*$',                   # (1), [2], - (1)
+        r'\s*[-_]\\s*[Vv]?\\d+\\s*$',                            # -1, _2
+        r'\s*[-_]?\\s*\\b[Vv]ersion\\s*\\d+\\s*$',               # Version 1, - Version 1
+        r'\s*[-_]?\\s*\\b[Vv]\\s*\\d+\\s*$',                      # V 1, - V 1
     ]
     for pattern in patterns:
         name = re.sub(pattern, '', name).strip()
+    # Final cleanup: remove any trailing dash/underscore/space
+    name = re.sub(r'\s*[-_]\\s*$', '', name).strip()
     return name
 
 def extract_event_instruments(root, namespaces):
