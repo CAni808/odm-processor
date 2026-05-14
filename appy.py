@@ -1,4 +1,6 @@
-import streamlit as st
+
+# Create the updated app.py with the DVS tab
+updated_app = '''import streamlit as st
 import xml.etree.ElementTree as ET
 import pandas as pd
 from io import BytesIO
@@ -28,19 +30,16 @@ def is_true_value(value):
 def get_namespace_map(root):
     odm_ns = 'http://www.cdisc.org/ns/odm/v1.3'
     redcap_ns = 'https://www.redcapcloud.com/ns/odm_ext_v132/v10'
-
     if '}' in root.tag:
         ns_uri = root.tag.split('}')[0][1:]
         if 'odm' in ns_uri.lower():
             odm_ns = ns_uri
-
     for attr, value in root.attrib.items():
         if 'xmlns' in attr:
             if 'odm' in value.lower() and 'cdisc' in value.lower():
                 odm_ns = value
             if 'redcap' in value.lower():
                 redcap_ns = value
-
     return {'odm': odm_ns, 'REDCap': redcap_ns}
 
 def find_elements_once(root, tag_name, namespaces):
@@ -64,7 +63,6 @@ def extract_metadata_versions(root, namespaces):
     metadata_versions = find_elements_once(root, 'MetaDataVersion', namespaces)
     if not metadata_versions:
         return {}
-    
     site_forms_map = {}
     for mv in metadata_versions:
         mv_oid = mv.get('OID', '')
@@ -73,7 +71,6 @@ def extract_metadata_versions(root, namespaces):
             site_name = mv_oid
         if site_name == IGNORED_SITE:
             continue
-        
         form_oids = set()
         form_defs = mv.findall(f'.//{{{namespaces.get("odm", "http://www.cdisc.org/ns/odm/v1.3")}}}FormDef')
         if not form_defs:
@@ -84,7 +81,6 @@ def extract_metadata_versions(root, namespaces):
             form_oid = form.get('OID', '')
             if form_oid:
                 form_oids.add(form_oid)
-        
         form_refs = mv.findall(f'.//{{{namespaces.get("odm", "http://www.cdisc.org/ns/odm/v1.3")}}}FormRef')
         if not form_refs:
             form_refs = mv.findall('.//odm:FormRef', namespaces)
@@ -94,7 +90,6 @@ def extract_metadata_versions(root, namespaces):
             form_oid = form_ref.get('FormOID', '')
             if form_oid:
                 form_oids.add(form_oid)
-        
         if site_name in site_forms_map:
             site_forms_map[site_name]['forms'].update(form_oids)
         else:
@@ -105,7 +100,6 @@ def extract_event_definitions(root, namespaces):
     study_event_defs = find_elements_once(root, 'StudyEventDef', namespaces)
     if not study_event_defs:
         return pd.DataFrame()
-
     event_definitions = []
     seen_oids = set()
     for event in study_event_defs:
@@ -113,11 +107,9 @@ def extract_event_definitions(root, namespaces):
         if not oid or oid in seen_oids:
             continue
         seen_oids.add(oid)
-
         dynamic_event = get_redcap_attr(event, 'DynamicEvent', namespaces)
         created_by_rule = get_redcap_attr(event, 'CreatedByRule', namespaces)
         dynamic_created_by_rule = 'Y' if (is_true_value(dynamic_event) or is_true_value(created_by_rule)) else 'N'
-
         event_info = {
             'Unique Event Name': get_redcap_attr(event, 'UniqueEventName', namespaces),
             'Name': event.get('Name', ''),
@@ -133,10 +125,8 @@ def extract_event_instruments(root, namespaces):
     form_defs = find_elements_once(root, 'FormDef', namespaces)
     if not study_event_defs:
         return pd.DataFrame()
-
     site_forms_map = extract_metadata_versions(root, namespaces)
     all_valid_sites = set(site_forms_map.keys())
-
     form_oid_to_name = {}
     seen_form_oids = set()
     for form in form_defs:
@@ -144,14 +134,11 @@ def extract_event_instruments(root, namespaces):
         if oid and oid not in seen_form_oids:
             seen_form_oids.add(oid)
             form_oid_to_name[oid] = form.get('Name', '')
-
     event_instruments = []
     seen_event_form_combos = set()
-
     for event in study_event_defs:
         event_oid = event.get('OID', '')
         event_name = event.get('Name', '')
-
         form_refs = []
         redcap_ns = namespaces.get('REDCap')
         if namespaces.get('odm'):
@@ -162,27 +149,23 @@ def extract_event_instruments(root, namespaces):
             for child in event:
                 if 'FormRef' in child.tag or child.tag.endswith('FormRef'):
                     form_refs.append(child)
-
         for form_ref in form_refs:
             form_oid = form_ref.get('FormOID', '')
             combo_key = (event_oid, form_oid)
             if not form_oid or combo_key in seen_event_form_combos:
                 continue
             seen_event_form_combos.add(combo_key)
-
             form_sites = set()
             if site_forms_map:
                 for site_name, info in site_forms_map.items():
                     if form_oid in info['forms']:
                         form_sites.add(site_name)
-            
             if not form_sites:
                 site_display = 'Unknown Site'
             elif form_sites == all_valid_sites:
                 site_display = 'All sites'
             else:
                 site_display = ', '.join(sorted(form_sites))
-
             monitoring_types_present = set()
             if redcap_ns:
                 monitoring_elems = form_ref.findall(f'.//{{{redcap_ns}}}Monitoring')
@@ -196,7 +179,6 @@ def extract_event_instruments(root, namespaces):
                     mtype = monitoring_elem.get('Type', '')
                     if mtype:
                         monitoring_types_present.add(mtype)
-
             record = {
                 'Event': event_name,
                 'Instrument Name': form_oid_to_name.get(form_oid, ''),
@@ -209,7 +191,6 @@ def extract_event_instruments(root, namespaces):
             for col in MONITORING_COLUMNS:
                 record[col] = 'Y' if col in monitoring_types_present else 'N'
             event_instruments.append(record)
-
     df = pd.DataFrame(event_instruments)
     if df.empty:
         columns = ['Event', 'Instrument Name', 'Version', 'Site', 'Repeating', 'Dynamic', 'Required'] + MONITORING_COLUMNS
@@ -229,6 +210,82 @@ def process_odm_content(xml_content):
         return None, None, f"XML Parse Error: {str(e)}"
     except Exception as e:
         return None, None, f"Error: {str(e)}"
+
+# ============================================================================
+# DVS MERGED VIEW FUNCTION
+# ============================================================================
+
+def create_dvs_view(df_events, df_instruments):
+    """
+    Create the DVS merged view combining Event Definitions and Event Instruments.
+    
+    Structure:
+    - Location: Unique Event Name, Event, Instrument Name
+    - Instrument Settings: Version, Site, Repeating, Dynamic, Required
+    - Event Settings: Added Manually, Repeating, Dynamic / Created by Rule
+    - Monitoring: SDV, Medical Monitoring, Data Review
+    """
+    if df_events.empty or df_instruments.empty:
+        return pd.DataFrame()
+    
+    # Create a mapping from Event Name to Event Definition data
+    event_map = {}
+    for _, row in df_events.iterrows():
+        event_name = row['Name']
+        event_map[event_name] = {
+            'Unique Event Name': row['Unique Event Name'],
+            'Added Manually': row['Manual Scheduling'],
+            'Event Repeating': row['Repeating'],
+            'Dynamic / Created by Rule': row['Dynamic/Created by Rule']
+        }
+    
+    # Build the merged DVS dataframe
+    dvs_records = []
+    for _, inst_row in df_instruments.iterrows():
+        event_name = inst_row['Event']
+        event_data = event_map.get(event_name, {
+            'Unique Event Name': '',
+            'Added Manually': 'N',
+            'Event Repeating': 'N',
+            'Dynamic / Created by Rule': 'N'
+        })
+        
+        record = {
+            # Location
+            'Unique Event Name': event_data['Unique Event Name'],
+            'Event': event_name,
+            'Instrument Name': inst_row['Instrument Name'],
+            # Instrument Settings
+            'Version': inst_row['Version'],
+            'Site': inst_row['Site'],
+            'Repeating': inst_row['Repeating'],
+            'Dynamic': inst_row['Dynamic'],
+            'Required': inst_row['Required'],
+            # Event Settings
+            'Added Manually': event_data['Added Manually'],
+            'Event Repeating': event_data['Event Repeating'],
+            'Dynamic / Created by Rule': event_data['Dynamic / Created by Rule'],
+            # Monitoring
+            'SDV': inst_row['SDV'],
+            'Medical Monitoring': inst_row['Medical Review'],
+            'Data Review': inst_row['Data Review']
+        }
+        dvs_records.append(record)
+    
+    dvs_df = pd.DataFrame(dvs_records)
+    
+    # Define the exact column order as shown in the image
+    dvs_columns = [
+        'Unique Event Name', 'Event', 'Instrument Name',
+        'Version', 'Site', 'Repeating', 'Dynamic', 'Required',
+        'Added Manually', 'Event Repeating', 'Dynamic / Created by Rule',
+        'SDV', 'Medical Monitoring', 'Data Review'
+    ]
+    
+    # Only include columns that exist
+    dvs_columns = [c for c in dvs_columns if c in dvs_df.columns]
+    
+    return dvs_df[dvs_columns]
 
 # ============================================================================
 # STREAMLIT UI
@@ -251,7 +308,11 @@ if uploaded_file is not None:
     else:
         st.success("✓ File processed successfully!")
         
-        tab1, tab2 = st.tabs(["Event Definitions", "Event Instruments"])
+        # Create the DVS merged view
+        df_dvs = create_dvs_view(df_events, df_instruments)
+        
+        # Create tabs - now with DVS as third tab
+        tab1, tab2, tab3 = st.tabs(["Event Definitions", "Event Instruments", "DVS"])
         
         with tab1:
             st.write(f"**Found {len(df_events)} event definitions**")
@@ -267,6 +328,14 @@ if uploaded_file is not None:
             else:
                 st.info("No event instruments found.")
         
+        with tab3:
+            st.write(f"**DVS View: {len(df_dvs)} records**")
+            if not df_dvs.empty:
+                st.dataframe(df_dvs, use_container_width=True)
+            else:
+                st.info("No DVS data available (both Event Definitions and Event Instruments required).")
+        
+        # Download button for standard output
         output_filename = uploaded_file.name.replace('.xml', '_events.xlsx')
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -274,6 +343,8 @@ if uploaded_file is not None:
                 df_events.to_excel(writer, sheet_name='Event Definitions', index=False)
             if not df_instruments.empty:
                 df_instruments.to_excel(writer, sheet_name='Event Instruments', index=False)
+            if not df_dvs.empty:
+                df_dvs.to_excel(writer, sheet_name='DVS', index=False)
         output.seek(0)
         
         st.download_button(
@@ -286,9 +357,24 @@ if uploaded_file is not None:
 with st.expander("ℹ️ How to use"):
     st.markdown("""
     1. **Upload** your ODM XML file
-    2. **Preview** the extracted data
-    3. **Download** the Excel file
+    2. **Preview** the extracted data in the tabs:
+       - **Event Definitions**: Individual event metadata
+       - **Event Instruments**: Form/instrument mappings
+       - **DVS**: Combined view with all columns merged
+    3. **Download** the Excel file with all three sheets
     """)
 
 st.markdown("---")
-st.markdown("*ODM File Processor*")
+st.markdown("*ODM File Processor - Web Version*")
+'''
+
+# Save the updated app.py
+with open('/mnt/kimi/output/odm_processor/app.py', 'w') as f:
+    f.write(updated_app)
+
+print("✅ Updated app.py created with DVS tab!")
+print("\nKey changes:")
+print("- Added create_dvs_view() function")
+print("- Added third tab 'DVS' with merged view")
+print("- DVS Excel sheet included in download")
+print("- Columns organized by: Location, Instrument Settings, Event Settings, Monitoring")
