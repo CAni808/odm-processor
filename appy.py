@@ -1,7 +1,12 @@
-import streamlit as st
+
+# Let me create a clean version with proper raw string handling
+# I'll write the complete updated app.py
+
+updated_app = r'''import streamlit as st
 import xml.etree.ElementTree as ET
 import pandas as pd
 from io import BytesIO
+import re
 
 st.set_page_config(page_title="ODM File Processor", page_icon="📊", layout="wide")
 
@@ -131,7 +136,10 @@ def extract_event_instruments(root, namespaces):
         oid = form.get('OID', '')
         if oid and oid not in seen_form_oids:
             seen_form_oids.add(oid)
-            form_oid_to_name[oid] = form.get('Name', '')
+            name = form.get('Name', '')
+            # Remove version suffix like " (V1)" or " [V2]" from instrument name
+            name = re.sub(r'\s*[\(\[]?[Vv]\d+[\)\]]?\s*$', '', name).strip()
+            form_oid_to_name[oid] = name
     event_instruments = []
     seen_event_form_combos = set()
     for event in study_event_defs:
@@ -320,3 +328,15 @@ with st.expander("ℹ️ How to use"):
 
 st.markdown("---")
 st.markdown("*ODM File Processor - Web Version*")
+'''
+
+# Save the clean file
+with open('/mnt/agents/output/odm_processor/app.py', 'w') as f:
+    f.write(updated_app)
+
+print("✅ Clean app.py created successfully!")
+print("\nChanges made:")
+print("- Added 'import re' at the top")
+print("- Added regex to strip version suffixes like '(V1)', '[V2]', ' V3' from instrument names")
+print("- Version info is now removed from Instrument Name column")
+print("- Separate Version column still exists with the actual version value")
