@@ -1,6 +1,4 @@
-
-# Create the updated app.py with the DVS tab
-updated_app = '''import streamlit as st
+import streamlit as st
 import xml.etree.ElementTree as ET
 import pandas as pd
 from io import BytesIO
@@ -211,24 +209,9 @@ def process_odm_content(xml_content):
     except Exception as e:
         return None, None, f"Error: {str(e)}"
 
-# ============================================================================
-# DVS MERGED VIEW FUNCTION
-# ============================================================================
-
 def create_dvs_view(df_events, df_instruments):
-    """
-    Create the DVS merged view combining Event Definitions and Event Instruments.
-    
-    Structure:
-    - Location: Unique Event Name, Event, Instrument Name
-    - Instrument Settings: Version, Site, Repeating, Dynamic, Required
-    - Event Settings: Added Manually, Repeating, Dynamic / Created by Rule
-    - Monitoring: SDV, Medical Monitoring, Data Review
-    """
     if df_events.empty or df_instruments.empty:
         return pd.DataFrame()
-    
-    # Create a mapping from Event Name to Event Definition data
     event_map = {}
     for _, row in df_events.iterrows():
         event_name = row['Name']
@@ -238,8 +221,6 @@ def create_dvs_view(df_events, df_instruments):
             'Event Repeating': row['Repeating'],
             'Dynamic / Created by Rule': row['Dynamic/Created by Rule']
         }
-    
-    # Build the merged DVS dataframe
     dvs_records = []
     for _, inst_row in df_instruments.iterrows():
         event_name = inst_row['Event']
@@ -249,47 +230,32 @@ def create_dvs_view(df_events, df_instruments):
             'Event Repeating': 'N',
             'Dynamic / Created by Rule': 'N'
         })
-        
         record = {
-            # Location
             'Unique Event Name': event_data['Unique Event Name'],
             'Event': event_name,
             'Instrument Name': inst_row['Instrument Name'],
-            # Instrument Settings
             'Version': inst_row['Version'],
             'Site': inst_row['Site'],
             'Repeating': inst_row['Repeating'],
             'Dynamic': inst_row['Dynamic'],
             'Required': inst_row['Required'],
-            # Event Settings
             'Added Manually': event_data['Added Manually'],
             'Event Repeating': event_data['Event Repeating'],
             'Dynamic / Created by Rule': event_data['Dynamic / Created by Rule'],
-            # Monitoring
             'SDV': inst_row['SDV'],
             'Medical Monitoring': inst_row['Medical Review'],
             'Data Review': inst_row['Data Review']
         }
         dvs_records.append(record)
-    
     dvs_df = pd.DataFrame(dvs_records)
-    
-    # Define the exact column order as shown in the image
     dvs_columns = [
         'Unique Event Name', 'Event', 'Instrument Name',
         'Version', 'Site', 'Repeating', 'Dynamic', 'Required',
         'Added Manually', 'Event Repeating', 'Dynamic / Created by Rule',
         'SDV', 'Medical Monitoring', 'Data Review'
     ]
-    
-    # Only include columns that exist
     dvs_columns = [c for c in dvs_columns if c in dvs_df.columns]
-    
     return dvs_df[dvs_columns]
-
-# ============================================================================
-# STREAMLIT UI
-# ============================================================================
 
 st.title("📊 ODM File Processor")
 st.markdown("Upload ODM XML files to extract Event Definitions and Event Instruments.")
@@ -299,43 +265,32 @@ uploaded_file = st.file_uploader("Choose an ODM XML file", type=['xml'])
 if uploaded_file is not None:
     st.info(f"**File:** {uploaded_file.name} ({uploaded_file.size} bytes)")
     xml_content = uploaded_file.read()
-    
     with st.spinner("Processing ODM file..."):
         df_events, df_instruments, error = process_odm_content(xml_content)
-    
     if error:
         st.error(error)
     else:
         st.success("✓ File processed successfully!")
-        
-        # Create the DVS merged view
         df_dvs = create_dvs_view(df_events, df_instruments)
-        
-        # Create tabs - now with DVS as third tab
         tab1, tab2, tab3 = st.tabs(["Event Definitions", "Event Instruments", "DVS"])
-        
         with tab1:
             st.write(f"**Found {len(df_events)} event definitions**")
             if not df_events.empty:
                 st.dataframe(df_events, use_container_width=True)
             else:
                 st.info("No event definitions found.")
-        
         with tab2:
             st.write(f"**Found {len(df_instruments)} event instruments**")
             if not df_instruments.empty:
                 st.dataframe(df_instruments, use_container_width=True)
             else:
                 st.info("No event instruments found.")
-        
         with tab3:
             st.write(f"**DVS View: {len(df_dvs)} records**")
             if not df_dvs.empty:
                 st.dataframe(df_dvs, use_container_width=True)
             else:
                 st.info("No DVS data available (both Event Definitions and Event Instruments required).")
-        
-        # Download button for standard output
         output_filename = uploaded_file.name.replace('.xml', '_events.xlsx')
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -346,7 +301,6 @@ if uploaded_file is not None:
             if not df_dvs.empty:
                 df_dvs.to_excel(writer, sheet_name='DVS', index=False)
         output.seek(0)
-        
         st.download_button(
             label="📥 Download Excel File",
             data=output,
@@ -366,15 +320,3 @@ with st.expander("ℹ️ How to use"):
 
 st.markdown("---")
 st.markdown("*ODM File Processor - Web Version*")
-'''
-
-# Save the updated app.py
-with open('/mnt/kimi/output/odm_processor/app.py', 'w') as f:
-    f.write(updated_app)
-
-print("✅ Updated app.py created with DVS tab!")
-print("\nKey changes:")
-print("- Added create_dvs_view() function")
-print("- Added third tab 'DVS' with merged view")
-print("- DVS Excel sheet included in download")
-print("- Columns organized by: Location, Instrument Settings, Event Settings, Monitoring")
