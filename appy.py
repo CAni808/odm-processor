@@ -123,7 +123,6 @@ def clean_instrument_name(name):
     """Remove version suffixes from instrument names."""
     if not name:
         return name
-    # Remove patterns like: (V1), [V2], V3, (v1), [v2], v3, (1), [1], etc.
     patterns = [
         r'\s*[\(\[]?[Vv]\d+[\)\]]?\s*$',
         r'\s*[\(\[]\d+[\)\]]\s*$',
@@ -318,7 +317,7 @@ if uploaded_file is not None:
             if not df_instruments.empty:
                 df_instruments.to_excel(writer, sheet_name='Event Instruments', index=False)
             if not df_dvs.empty:
-                dvs_df.to_excel(writer, sheet_name='DVS', index=False)
+                df_dvs.to_excel(writer, sheet_name='DVS', index=False)
         output.seek(0)
         st.download_button(
             label="📥 Download Excel File",
