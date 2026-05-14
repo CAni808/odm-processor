@@ -119,22 +119,38 @@ def extract_event_definitions(root, namespaces):
         event_definitions.append(event_info)
     return pd.DataFrame(event_definitions)
 
-def clean_instrument_name(name):
-    """Remove version suffixes from instrument names like 'Name - Version 1'."""
+def clean_instrument_name(name, version=''):
+    """Remove version suffixes from instrument names.
+    
+    Handles formats like:
+    - 'Name - Version 1'
+    - 'Name (V1)'
+    - 'Name - original' (where version value is appended)
+    """
     if not name:
         return name
-    # Patterns to remove version info (with optional dash/space prefix)
+    
+    # If version is provided and appears at end of name, remove it
+    if version and version.strip():
+        # Escape special regex characters in version
+        version_escaped = re.escape(version.strip())
+        # Remove " - version" or "_version" or " version" from end
+        name = re.sub(r'\s*[-_]\s*' + version_escaped + r'\s*$', '', name).strip()
+        name = re.sub(r'\s+' + version_escaped + r'\s*$', '', name).strip()
+    
+    # Standard version patterns
     patterns = [
-        r'\s*[-_]?\\s*[\\(\\[]?[Vv]\\d+[\\)\\]]?\\s*$',           # (V1), [V2], V3, - V1
-        r'\s*[-_]?\\s*[\\(\\[]\\d+[\\)\\]]\\s*$',                   # (1), [2], - (1)
-        r'\s*[-_]\\s*[Vv]?\\d+\\s*$',                            # -1, _2
-        r'\s*[-_]?\\s*\\b[Vv]ersion\\s*\\d+\\s*$',               # Version 1, - Version 1
-        r'\s*[-_]?\\s*\\b[Vv]\\s*\\d+\\s*$',                      # V 1, - V 1
+        r'\s*[-_]?\s*[\(\[]?[Vv]\d+[\)\]]?\s*$',           # (V1), [V2], V3, - V1
+        r'\s*[-_]?\s*[\(\[]\d+[\)\]]\s*$',                   # (1), [2], - (1)
+        r'\s*[-_]\s*[Vv]?\d+\s*$',                            # -1, _2
+        r'\s*[-_]?\s*\b[Vv]ersion\s*\d+\s*$',               # Version 1, - Version 1
+        r'\s*[-_]?\s*\b[Vv]\s*\d+\s*$',                      # V 1, - V 1
     ]
     for pattern in patterns:
         name = re.sub(pattern, '', name).strip()
+    
     # Final cleanup: remove any trailing dash/underscore/space
-    name = re.sub(r'\s*[-_]\\s*$', '', name).strip()
+    name = re.sub(r'\s*[-_]\s*$', '', name).strip()
     return name
 
 def extract_event_instruments(root, namespaces):
@@ -144,17 +160,28 @@ def extract_event_instruments(root, namespaces):
         return pd.DataFrame()
     site_forms_map = extract_metadata_versions(root, namespaces)
     all_valid_sites = set(site_forms_map.keys())
-    form_oid_to_name = {}
+    
+    # First pass: get raw names and versions
+    form_oid_to_raw_name = {}
+    form_oid_to_version = {}
     seen_form_oids = set()
+    
     for form in form_defs:
         oid = form.get('OID', '')
         if oid and oid not in seen_form_oids:
             seen_form_oids.add(oid)
-            name = form.get('Name', '')
-            name = clean_instrument_name(name)
-            form_oid_to_name[oid] = name
+            form_oid_to_raw_name[oid] = form.get('Name', '')
+            form_oid_to_version[oid] = get_redcap_attr(form, 'DefaultVersion', namespaces)
+    
+    # Second pass: clean names using version info
+    form_oid_to_name = {}
+    for oid, raw_name in form_oid_to_raw_name.items():
+        version = form_oid_to_version.get(oid, '')
+        form_oid_to_name[oid] = clean_instrument_name(raw_name, version)
+    
     event_instruments = []
     seen_event_form_combos = set()
+    
     for event in study_event_defs:
         event_oid = event.get('OID', '')
         event_name = event.get('Name', '')
@@ -198,10 +225,14 @@ def extract_event_instruments(root, namespaces):
                     mtype = monitoring_elem.get('Type', '')
                     if mtype:
                         monitoring_types_present.add(mtype)
+            
+            # Get version from FormRef (may override FormDef version)
+            formref_version = get_redcap_attr(form_ref, 'DefaultVersion', namespaces)
+            
             record = {
                 'Event': event_name,
                 'Instrument Name': form_oid_to_name.get(form_oid, ''),
-                'Version': get_redcap_attr(form_ref, 'DefaultVersion', namespaces),
+                'Version': formref_version,
                 'Site': site_display,
                 'Repeating': to_yes_no(get_redcap_attr(form_ref, 'Repeating', namespaces)),
                 'Dynamic': to_yes_no(get_redcap_attr(form_ref, 'DynamicForm', namespaces)),
