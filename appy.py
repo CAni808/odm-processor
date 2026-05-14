@@ -1,4 +1,8 @@
-import streamlit as st
+
+# Let me update the regex to be more comprehensive
+# and create a completely fresh version of the file
+
+updated_app = r'''import streamlit as st
 import xml.etree.ElementTree as ET
 import pandas as pd
 from io import BytesIO
@@ -119,6 +123,22 @@ def extract_event_definitions(root, namespaces):
         event_definitions.append(event_info)
     return pd.DataFrame(event_definitions)
 
+def clean_instrument_name(name):
+    """Remove version suffixes from instrument names."""
+    if not name:
+        return name
+    # Remove patterns like: (V1), [V2], V3, (v1), [v2], v3, (1), [1], etc.
+    patterns = [
+        r'\s*[\(\[]?[Vv]\d+[\)\]]?\s*$',           # (V1), [V2], V3, (v1)
+        r'\s*[\(\[]\d+[\)\]]\s*$',                   # (1), [2], (01)
+        r'\s*[-_]\s*[Vv]?\d+\s*$',                   # - V1, _v2, -1
+        r'\s*\b[Vv]ersion\s*\d+\s*$',               # Version 1, version 2
+        r'\s*\b[Vv]\s*\d+\s*$',                      # V 1, v 2
+    ]
+    for pattern in patterns:
+        name = re.sub(pattern, '', name).strip()
+    return name
+
 def extract_event_instruments(root, namespaces):
     study_event_defs = find_elements_once(root, 'StudyEventDef', namespaces)
     form_defs = find_elements_once(root, 'FormDef', namespaces)
@@ -133,8 +153,8 @@ def extract_event_instruments(root, namespaces):
         if oid and oid not in seen_form_oids:
             seen_form_oids.add(oid)
             name = form.get('Name', '')
-            # Remove version suffix like " (V1)" or " [V2]" from instrument name
-            name = re.sub(r'\s*[\(\[]?[Vv]\d+[\)\]]?\s*$', '', name).strip()
+            # Remove version suffix from instrument name
+            name = clean_instrument_name(name)
             form_oid_to_name[oid] = name
     event_instruments = []
     seen_event_form_combos = set()
@@ -317,10 +337,22 @@ with st.expander("ℹ️ How to use"):
     1. **Upload** your ODM XML file
     2. **Preview** the extracted data in the tabs:
        - **Event Definitions**: Individual event metadata
-       - **Event Instruments**: Form/instrument mappings
-       - **DVS**: Combined view with all columns merged
+       - **Event Instruments**: Form/instrument mappings (version removed from names)
+       - **DVS**: Combined view (version removed from names)
     3. **Download** the Excel file with all three sheets
     """)
 
 st.markdown("---")
 st.markdown("*ODM File Processor - Web Version*")
+'''
+
+# Save the file
+with open('/mnt/agents/output/odm_processor/app.py', 'w') as f:
+    f.write(updated_app)
+
+print("✅ Updated app.py saved!")
+print("\nKey improvements:")
+print("- Added clean_instrument_name() function with multiple regex patterns")
+print("- Handles: (V1), [V2], V3, (v1), [1], - V1, _v2, Version 1, etc.")
+print("- Version stripping applies to BOTH Event Instruments and DVS tabs")
+print("- Separate Version column still contains the actual version value")
