@@ -1,8 +1,4 @@
-
-# Let me update the regex to be more comprehensive
-# and create a completely fresh version of the file
-
-updated_app = r'''import streamlit as st
+import streamlit as st
 import xml.etree.ElementTree as ET
 import pandas as pd
 from io import BytesIO
@@ -129,11 +125,11 @@ def clean_instrument_name(name):
         return name
     # Remove patterns like: (V1), [V2], V3, (v1), [v2], v3, (1), [1], etc.
     patterns = [
-        r'\s*[\(\[]?[Vv]\d+[\)\]]?\s*$',           # (V1), [V2], V3, (v1)
-        r'\s*[\(\[]\d+[\)\]]\s*$',                   # (1), [2], (01)
-        r'\s*[-_]\s*[Vv]?\d+\s*$',                   # - V1, _v2, -1
-        r'\s*\b[Vv]ersion\s*\d+\s*$',               # Version 1, version 2
-        r'\s*\b[Vv]\s*\d+\s*$',                      # V 1, v 2
+        r'\s*[\(\[]?[Vv]\d+[\)\]]?\s*$',
+        r'\s*[\(\[]\d+[\)\]]\s*$',
+        r'\s*[-_]\s*[Vv]?\d+\s*$',
+        r'\s*\b[Vv]ersion\s*\d+\s*$',
+        r'\s*\b[Vv]\s*\d+\s*$',
     ]
     for pattern in patterns:
         name = re.sub(pattern, '', name).strip()
@@ -153,7 +149,6 @@ def extract_event_instruments(root, namespaces):
         if oid and oid not in seen_form_oids:
             seen_form_oids.add(oid)
             name = form.get('Name', '')
-            # Remove version suffix from instrument name
             name = clean_instrument_name(name)
             form_oid_to_name[oid] = name
     event_instruments = []
@@ -323,7 +318,7 @@ if uploaded_file is not None:
             if not df_instruments.empty:
                 df_instruments.to_excel(writer, sheet_name='Event Instruments', index=False)
             if not df_dvs.empty:
-                df_dvs.to_excel(writer, sheet_name='DVS', index=False)
+                dvs_df.to_excel(writer, sheet_name='DVS', index=False)
         output.seek(0)
         st.download_button(
             label="📥 Download Excel File",
@@ -344,15 +339,3 @@ with st.expander("ℹ️ How to use"):
 
 st.markdown("---")
 st.markdown("*ODM File Processor - Web Version*")
-'''
-
-# Save the file
-with open('/mnt/agents/output/odm_processor/app.py', 'w') as f:
-    f.write(updated_app)
-
-print("✅ Updated app.py saved!")
-print("\nKey improvements:")
-print("- Added clean_instrument_name() function with multiple regex patterns")
-print("- Handles: (V1), [V2], V3, (v1), [1], - V1, _v2, Version 1, etc.")
-print("- Version stripping applies to BOTH Event Instruments and DVS tabs")
-print("- Separate Version column still contains the actual version value")
