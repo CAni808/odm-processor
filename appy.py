@@ -510,4 +510,3 @@ if uploaded_file is not None:
 
 st.markdown("---")
 st.markdown("ODM File Processor - Web Version")
-```
