@@ -1,3 +1,5 @@
+Save this exactly as `appy.py` (or preferably rename it to `app.py`).
+
 ```python
 import streamlit as st
 import xml.etree.ElementTree as ET
@@ -14,9 +16,6 @@ MONITORING_COLUMNS = ['SDV', 'Medical Review', 'Data Review']
 IGNORED_SITE = 'REDCap Cloud Demo'
 
 
-# -----------------------------
-# Utility Functions
-# -----------------------------
 def to_yes_no(value):
     if value is None:
         return 'N'
@@ -25,10 +24,11 @@ def to_yes_no(value):
 
     if value_str in ['yes', 'true', '1', 'y']:
         return 'Y'
-    elif value_str in ['no', 'false', '0', 'n']:
+
+    if value_str in ['no', 'false', '0', 'n']:
         return 'N'
 
-    return 'N' if not value_str else value_str.upper()
+    return 'N'
 
 
 def is_true_value(value):
@@ -51,21 +51,6 @@ def get_namespace_map(root):
     odm_ns = 'http://www.cdisc.org/ns/odm/v1.3'
     redcap_ns = 'https://www.redcapcloud.com/ns/odm_ext_v132/v10'
 
-    if '}' in root.tag:
-        ns_uri = root.tag.split('}')[0][1:]
-
-        if 'odm' in ns_uri.lower():
-            odm_ns = ns_uri
-
-    for attr, value in root.attrib.items():
-        if 'xmlns' in attr:
-
-            if 'odm' in value.lower() and 'cdisc' in value.lower():
-                odm_ns = value
-
-            if 'redcap' in value.lower():
-                redcap_ns = value
-
     return {
         'odm': odm_ns,
         'REDCap': redcap_ns
@@ -73,17 +58,9 @@ def get_namespace_map(root):
 
 
 def find_elements_once(root, tag_name, namespaces):
-    ns_uri = namespaces.get(
-        'odm',
-        'http://www.cdisc.org/ns/odm/v1.3'
-    )
+    ns_uri = namespaces['odm']
 
     elements = root.findall(f'.//{{{ns_uri}}}{tag_name}')
-
-    if elements:
-        return elements
-
-    elements = root.findall(f'.//odm:{tag_name}', namespaces)
 
     if elements:
         return elements
@@ -92,10 +69,7 @@ def find_elements_once(root, tag_name, namespaces):
 
 
 def get_redcap_attr(element, attr_name, namespaces):
-    ns_uri = namespaces.get(
-        'REDCap',
-        'https://www.redcapcloud.com/ns/odm_ext_v132/v10'
-    )
+    ns_uri = namespaces['REDCap']
 
     value = element.get(f'{{{ns_uri}}}{attr_name}', '')
 
@@ -105,9 +79,6 @@ def get_redcap_attr(element, attr_name, namespaces):
     return element.get(attr_name, '')
 
 
-# -----------------------------
-# Metadata Extraction
-# -----------------------------
 def extract_metadata_versions(root, namespaces):
     metadata_versions = find_elements_once(
         root,
@@ -133,33 +104,11 @@ def extract_metadata_versions(root, namespaces):
         form_oids = set()
 
         form_defs = mv.findall(
-            f'.//{{{namespaces.get("odm")}}}FormDef'
+            f'.//{{{namespaces["odm"]}}}FormDef'
         )
-
-        if not form_defs:
-            form_defs = mv.findall('.//odm:FormDef', namespaces)
-
-        if not form_defs:
-            form_defs = mv.findall('.//FormDef')
 
         for form in form_defs:
             form_oid = form.get('OID', '')
-
-            if form_oid:
-                form_oids.add(form_oid)
-
-        form_refs = mv.findall(
-            f'.//{{{namespaces.get("odm")}}}FormRef'
-        )
-
-        if not form_refs:
-            form_refs = mv.findall('.//odm:FormRef', namespaces)
-
-        if not form_refs:
-            form_refs = mv.findall('.//FormRef')
-
-        for form_ref in form_refs:
-            form_oid = form_ref.get('FormOID', '')
 
             if form_oid:
                 form_oids.add(form_oid)
@@ -186,16 +135,8 @@ def extract_event_definitions(root, namespaces):
         return pd.DataFrame()
 
     event_definitions = []
-    seen_oids = set()
 
     for event in study_event_defs:
-        oid = event.get('OID', '')
-
-        if not oid or oid in seen_oids:
-            continue
-
-        seen_oids.add(oid)
-
         dynamic_event = get_redcap_attr(
             event,
             'DynamicEvent',
@@ -278,43 +219,27 @@ def extract_event_instruments(root, namespaces):
     all_valid_sites = set(site_forms_map.keys())
 
     form_oid_to_name = {}
-    seen_form_oids = set()
 
     for form in form_defs:
         oid = form.get('OID', '')
 
-        if oid and oid not in seen_form_oids:
-            seen_form_oids.add(oid)
-
+        if oid:
             name = form.get('Name', '')
             name = clean_instrument_name(name)
 
             form_oid_to_name[oid] = name
 
     event_instruments = []
-    seen_event_form_combos = set()
 
     for event in study_event_defs:
-        event_oid = event.get('OID', '')
         event_name = event.get('Name', '')
 
         form_refs = event.findall(
-            'odm:FormRef',
-            namespaces
+            f'.//{{{namespaces["odm"]}}}FormRef'
         )
-
-        if not form_refs:
-            form_refs = event.findall('FormRef')
 
         for form_ref in form_refs:
             form_oid = form_ref.get('FormOID', '')
-
-            combo_key = (event_oid, form_oid)
-
-            if not form_oid or combo_key in seen_event_form_combos:
-                continue
-
-            seen_event_form_combos.add(combo_key)
 
             form_sites = set()
 
@@ -332,18 +257,17 @@ def extract_event_instruments(root, namespaces):
 
             monitoring_types_present = set()
 
-            redcap_ns = namespaces.get('REDCap')
+            redcap_ns = namespaces['REDCap']
 
-            if redcap_ns:
-                monitoring_elems = form_ref.findall(
-                    f'.//{{{redcap_ns}}}Monitoring'
-                )
+            monitoring_elems = form_ref.findall(
+                f'.//{{{redcap_ns}}}Monitoring'
+            )
 
-                for monitoring_elem in monitoring_elems:
-                    mtype = monitoring_elem.get('Type', '')
+            for monitoring_elem in monitoring_elems:
+                mtype = monitoring_elem.get('Type', '')
 
-                    if mtype:
-                        monitoring_types_present.add(mtype)
+                if mtype:
+                    monitoring_types_present.add(mtype)
 
             record = {
                 'Event': event_name,
@@ -388,17 +312,7 @@ def extract_event_instruments(root, namespaces):
     df = pd.DataFrame(event_instruments)
 
     if df.empty:
-        columns = [
-            'Event',
-            'Instrument Name',
-            'Version',
-            'Site',
-            'Repeating',
-            'Dynamic',
-            'Required'
-        ] + MONITORING_COLUMNS
-
-        return pd.DataFrame(columns=columns)
+        return pd.DataFrame()
 
     final_cols = [
         'Event',
@@ -410,14 +324,9 @@ def extract_event_instruments(root, namespaces):
         'Required'
     ] + MONITORING_COLUMNS
 
-    final_cols = [c for c in final_cols if c in df.columns]
-
     return df[final_cols]
 
 
-# -----------------------------
-# Processing
-# -----------------------------
 def process_odm_content(xml_content):
     try:
         root = ET.fromstring(xml_content)
@@ -443,9 +352,6 @@ def process_odm_content(xml_content):
         return None, None, f"Error: {str(e)}"
 
 
-# -----------------------------
-# DVS View
-# -----------------------------
 def create_dvs_view(df_events, df_instruments):
     if df_events.empty or df_instruments.empty:
         return pd.DataFrame()
@@ -500,35 +406,13 @@ def create_dvs_view(df_events, df_instruments):
 
     dvs_df = pd.DataFrame(dvs_records)
 
-    dvs_columns = [
-        'Unique Event Name',
-        'Event',
-        'Instrument Name',
-        'Version',
-        'Site',
-        'Repeating',
-        'Dynamic',
-        'Required',
-        'Added Manually',
-        'Event Repeating',
-        'Dynamic / Created by Rule',
-        'SDV',
-        'Medical Monitoring',
-        'Data Review'
-    ]
-
-    dvs_columns = [c for c in dvs_columns if c in dvs_df.columns]
-
-    return dvs_df[dvs_columns]
+    return dvs_df
 
 
-# -----------------------------
-# Streamlit UI
-# -----------------------------
 st.title("📊 ODM File Processor")
 
 st.markdown(
-    "Upload ODM XML files to extract Event Definitions and Event Instruments."
+    "Upload ODM XML files to extract ODM event and instrument data."
 )
 
 uploaded_file = st.file_uploader(
@@ -539,7 +423,7 @@ uploaded_file = st.file_uploader(
 if uploaded_file is not None:
 
     st.info(
-        f"**File:** {uploaded_file.name} "
+        f"File: {uploaded_file.name} "
         f"({uploaded_file.size} bytes)"
     )
 
@@ -554,7 +438,7 @@ if uploaded_file is not None:
         st.error(error)
 
     else:
-        st.success("✓ File processed successfully!")
+        st.success("File processed successfully!")
 
         df_dvs = create_dvs_view(
             df_events,
@@ -568,47 +452,22 @@ if uploaded_file is not None:
         ])
 
         with tab1:
-            st.write(
-                f"**Found {len(df_events)} event definitions**"
+            st.dataframe(
+                df_events,
+                use_container_width=True
             )
-
-            if not df_events.empty:
-                st.dataframe(
-                    df_events,
-                    use_container_width=True
-                )
-            else:
-                st.info("No event definitions found.")
 
         with tab2:
-            st.write(
-                f"**Found {len(df_instruments)} event instruments**"
+            st.dataframe(
+                df_instruments,
+                use_container_width=True
             )
-
-            if not df_instruments.empty:
-                st.dataframe(
-                    df_instruments,
-                    use_container_width=True
-                )
-            else:
-                st.info("No event instruments found.")
 
         with tab3:
-            st.write(
-                f"**DVS View: {len(df_dvs)} records**"
+            st.dataframe(
+                df_dvs,
+                use_container_width=True
             )
-
-            if not df_dvs.empty:
-                st.dataframe(
-                    df_dvs,
-                    use_container_width=True
-                )
-            else:
-                st.info(
-                    "No DVS data available "
-                    "(both Event Definitions and "
-                    "Event Instruments required)."
-                )
 
         output_filename = uploaded_file.name.replace(
             '.xml',
@@ -649,24 +508,9 @@ if uploaded_file is not None:
             label="📥 Download Excel File",
             data=output,
             file_name=output_filename,
-            mime=(
-                "application/"
-                "vnd.openxmlformats-officedocument."
-                "spreadsheetml.sheet"
-            )
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
-
-with st.expander("ℹ️ How to use"):
-    st.markdown("""
-    1. Upload your ODM XML file
-    2. Preview the extracted data:
-       - Event Definitions
-       - Event Instruments
-       - DVS
-    3. Download the generated Excel file
-    """)
-
 st.markdown("---")
-st.markdown("*ODM File Processor - Web Version*")
+st.markdown("ODM File Processor - Web Version")
 ```
