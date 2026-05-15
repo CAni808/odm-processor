@@ -89,11 +89,16 @@ def extract_metadata_versions(root, namespaces):
     site_forms_map = {}
 
     for mv in metadata_versions:
-        mv_oid = mv.get('OID', '')
-        site_name = mv.get('Name', '')
+
+        # Use LocationOID first
+        site_name = mv.get('LocationOID', '')
+
+        # Fallbacks
+        if not site_name:
+            site_name = mv.get('Name', '')
 
         if not site_name:
-            site_name = mv_oid
+            site_name = mv.get('OID', '')
 
         if site_name == IGNORED_SITE:
             continue
@@ -110,11 +115,20 @@ def extract_metadata_versions(root, namespaces):
             if form_oid:
                 form_oids.add(form_oid)
 
+        form_refs = mv.findall(
+            f'.//{{{namespaces["odm"]}}}FormRef'
+        )
+
+        for form_ref in form_refs:
+            form_oid = form_ref.get('FormOID', '')
+
+            if form_oid:
+                form_oids.add(form_oid)
+
         if site_name in site_forms_map:
             site_forms_map[site_name]['forms'].update(form_oids)
         else:
             site_forms_map[site_name] = {
-                'oid': mv_oid,
                 'forms': form_oids
             }
 
