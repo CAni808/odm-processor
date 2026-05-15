@@ -1,6 +1,3 @@
-Save this exactly as `appy.py` (or preferably rename it to `app.py`).
-
-```python
 import streamlit as st
 import xml.etree.ElementTree as ET
 import pandas as pd
