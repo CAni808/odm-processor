@@ -191,7 +191,17 @@ def extract_event_definitions(root, namespaces):
 
         event_definitions.append(event_info)
 
-    return pd.DataFrame(event_definitions)
+    df = pd.DataFrame(event_definitions)
+
+    # NOTE: ODM files typically declare one MetaDataVersion per site,
+    # and each MetaDataVersion re-declares the same StudyEventDef
+    # elements. Since we search the whole document rather than one
+    # MetaDataVersion, every event definition gets picked up once per
+    # site. The rows are identical in every column, so it's safe to
+    # collapse them here.
+    df = df.drop_duplicates(ignore_index=True)
+
+    return df
 
 
 def clean_instrument_name(name):
@@ -335,7 +345,16 @@ def extract_event_instruments(root, namespaces):
         'Required'
     ] + MONITORING_COLUMNS
 
-    return df[final_cols]
+    df = df[final_cols]
+
+    # Same root cause as extract_event_definitions: StudyEventDef (and
+    # therefore its FormRef children) is duplicated once per site's
+    # MetaDataVersion. The 'Site' column is already computed from the
+    # merged site_forms_map, so duplicate rows are identical across
+    # every column and safe to collapse.
+    df = df.drop_duplicates(ignore_index=True)
+
+    return df
 
 
 def process_odm_content(xml_content):
@@ -416,6 +435,10 @@ def create_dvs_view(df_events, df_instruments):
         dvs_records.append(record)
 
     dvs_df = pd.DataFrame(dvs_records)
+
+    # df_events and df_instruments are already deduplicated, but this
+    # view combines fields from both, so dedupe again for safety.
+    dvs_df = dvs_df.drop_duplicates(ignore_index=True)
 
     return dvs_df
 
